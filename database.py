@@ -22,9 +22,13 @@ class ReactionTracker(MyModel):
     adjective_comp = pw.CharField(help_text='Comparative form of the adjective: "higher", "hotter", "cooler"')
     adjective_super = pw.CharField(help_text='Superlative form of the adjective: "top", "hottest", "coolest"')
     
+    last_sent_notification_at_unix_time = pw.IntegerField(default=0)
+    notification_cooldown = pw.IntegerField(default=300)
 
 @create_table
 class TrackedMessage(MyModel):
     tracker = pw.ForeignKeyField(ReactionTracker, index=True)
-    posted_at = pw.DateTimeField(index=True)
+    channel_id = pw.BigIntegerField(index=True)
+    message_id = pw.BigIntegerField(index=True)
+    # no timestamp, because that can be derived from message_id
     reaction_count = pw.IntegerField(default=0, index=True)
