@@ -1,6 +1,6 @@
 import peewee as pw
 
-db = pw.SqliteDatabase('/data.db')
+db = pw.SqliteDatabase('./data.db')
 
 class MyModel(pw.Model):
     class Meta:
@@ -25,6 +25,17 @@ class ReactionTracker(MyModel):
     last_sent_notification_at_unix_time = pw.IntegerField(default=0)
     notification_cooldown = pw.IntegerField(default=300)
 
+    def message_has_reactions_count(self, message):
+        count = 0
+        for reaction in message.reactions:
+            if isinstance(reaction.emoji, str):
+                if reaction.emoji == self.emoji_str:
+                    count += reaction.count
+            else:
+                if reaction.emoji.id == self.emoji_id:
+                    count += reaction.count
+        return count
+
 @create_table
 class TrackedMessage(MyModel):
     tracker = pw.ForeignKeyField(ReactionTracker, index=True)
@@ -32,3 +43,4 @@ class TrackedMessage(MyModel):
     message_id = pw.BigIntegerField(index=True)
     # no timestamp, because that can be derived from message_id
     reaction_count = pw.IntegerField(default=0, index=True)
+    last_full_update = pw.DateTimeField(null=True, index=True)

@@ -32,7 +32,7 @@ async def on_raw_reaction_add(payload):
     except ReactionTracker.DoesNotExist:
         return
     msg = TrackedMessage.get_or_create(tracker=rt, channel_id=payload.channel_id, message_id=payload.message_id)
-    TrackedMessage.update(reaction_count=TrackedMessage.reaction_count+1).where(TrackedMessage.message_id==payload.message_id).execute()
+    TrackedMessage.update(reaction_count=TrackedMessage.reaction_count+1).where(TrackedMessage.message_id==payload.message_id).where(TrackedMessage.tracker == rt).execute()
     await run_top_analysis()
 
 @bot.event
