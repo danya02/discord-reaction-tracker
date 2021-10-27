@@ -4,6 +4,7 @@ import asyncio
 import os
 from database import *
 import traceback
+import time
 
 from process_history import run_process_history
 
@@ -15,7 +16,36 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 bot = commands.Bot(command_prefix='#')
 
 async def run_top_analysis():
-    pass  # TODO: implement
+    for tracker in ReactionTracker.select().iterator():
+        try:
+            top_message = TrackedMessage.select().where(TrackedMessage.tracker == tracker).order_by(-TrackedMessage.reaction_count, -TrackedMessage.message_id).get()
+        except TrackedMessage.DoesNotExist:
+            tracker.top_message = None
+            tracker.save()
+            continue
+
+        if top_message.id != tracker.last_top_reacted_message_id:
+            tracker.last_top_reacted_message_id = top_message.id
+            tracker.save()
+            since_last_notification = time.time() - tracker.last_sent_notification_at_unix_time
+            if since_last_notification >= tracker.notification_cooldown:
+                tracker.last_sent_notification_at_unix_time = int(time.time())
+                tracker.save()
+                guild = bot.get_guild(tracker.guild_id) or await bot.fetch_guild(tracker.guild_id)
+                channel = guild.get_channel(top_message.channel_id)
+                top_msg_partial = channel.get_partial_message(top_message.message_id)
+                await top_msg_partial.reply(f"This message is now the {tracker.adjective_super} {tracker.single_event_name} in this server, with {top_message.reaction_count} reactions.", mention_author=False)
+
+
+@bot.command()
+async def analyze_top(ctx):
+    msg = await ctx.send("Running top analysis...")
+    try:
+        await run_top_analysis()
+        await msg.edit(content="Top analysis done.")
+    except:
+        await msg.edit(content="Error:\n\n```\n" + traceback.format_exc() + "\n```")
+
 
 @bot.command()
 async def process_history(ctx):
