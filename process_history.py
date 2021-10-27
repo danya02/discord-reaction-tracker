@@ -7,9 +7,22 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 bot = discord.Client()
 
+class FakeMessage:
+    async def edit(self, content=None):
+        print(content)
+
 @bot.event
 async def on_ready():
-    print("Client ready, fetching all tracked guilds...")
+    await run_process_history(FakeMessage(), bot)
+    await bot.close()
+
+
+async def run_process_history(status_message, bot):
+    old_content = status_message.content
+    async def write(*args):
+        await status_message.edit(content=old_content+' '+' '.join(map(str, args)))
+
+    await write("Fetching all tracked guilds...")
     guilds = {}
     earliest_messages = {}
     trackers = []
@@ -22,31 +35,35 @@ async def on_ready():
         if item.guild_id not in guilds:
             try:
                 guilds[item.guild_id] = await bot.fetch_guild(item.guild_id)
-                print("Fetched guild ID", item.guild_id, "as", repr(guilds[item.guild_id]))
+                #print("Fetched guild ID", item.guild_id, "as", repr(guilds[item.guild_id]))
             except:
-                print("Could not fetch guild ID", item.guild_id)
+                await write("Could not fetch guild ID", item.guild_id)
                 continue
-    for guild in guilds:
+    for gind, guild in enumerate(guilds):
         guild = guilds[guild]
-        for channel in (await guild.fetch_channels()):
+        channels = await guild.fetch_channels()
+        for cind, channel in enumerate(channels):
             if not isinstance(channel, discord.TextChannel):
-                print("Skipping", repr(channel))
+                #print("Skipping", repr(channel))
                 continue
-            print("Processing channel", repr(channel))
+            await write("Processing guild", f"{gind+1}/{len(guilds)},", "channel", f"{cind+1}/{len(channels)}", repr(channel), "0 messages")
             msg_count = 0
+            latest_msg_date = datetime.datetime.min
             async for message in channel.history(limit=None, oldest_first=True, after=discord.Object(earliest_messages[guild.id])):
                 msg_count += 1
-                if (msg_count % 100) == 0:
-                    print("Processed", msg_count, "messages")
+                latest_msg_date = message.created_at
+                if (msg_count % 500) == 0:
+                    await write("Processing guild", f"{gind+1}/{len(guilds)},", "channel", f"{cind+1}/{len(channels)}", repr(channel), str(msg_count), "messages, latest is at", latest_msg_date.isoformat())
                 for tracker in trackers:
                     count = tracker.message_has_reactions_count(message)
                     if not count: continue
-                    print("Message", message, "has", count, "reactions by", repr(tracker))
+                    #print("Message", message, "has", count, "reactions by", repr(tracker))
                     tm, _ = TrackedMessage.get_or_create(tracker=tracker, channel_id=message.channel.id, message_id=message.id)
                     tm.reaction_count = count
                     tm.last_full_update = datetime.datetime.now()
+                    tm.content = message.content
                     tm.save()
-    print("Processed all, exiting")
-    await bot.close()
+    await write("Processed all visible messages!")
 
-bot.run(TOKEN)
+if __name__ == '__main__':
+    bot.run(TOKEN)

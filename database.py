@@ -24,6 +24,7 @@ class ReactionTracker(MyModel):
     
     last_sent_notification_at_unix_time = pw.IntegerField(default=0)
     notification_cooldown = pw.IntegerField(default=300)
+    last_top_reacted_message_id = pw.IntegerField(null=True)  # refers to the TrackedMessage table, but is not a foreign key, because this is allowed to dangle.
 
     def message_has_reactions_count(self, message):
         count = 0
@@ -44,3 +45,4 @@ class TrackedMessage(MyModel):
     # no timestamp, because that can be derived from message_id
     reaction_count = pw.IntegerField(default=0, index=True)
     last_full_update = pw.DateTimeField(null=True, index=True)
+    content = pw.TextField(null=True)
